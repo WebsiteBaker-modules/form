@@ -1,0 +1,106 @@
+<?php
+/**
+ *
+ * @category        module
+ * @package         Form
+ * @author          Ryan Djurovich, WebsiteBaker Project
+ * @copyright       WebsiteBaker Org. e.V.
+ * @link            http://websitebaker.org/
+ * @license         http://www.gnu.org/licenses/gpl.html
+ * @platform        WebsiteBaker 2.8.3
+ * @requirements    PHP 5.3.6 and higher
+ * @version         $Id: save_field_new.php 67 2017-03-03 22:14:28Z manu $
+ * @filesource      $HeadURL: svn://isteam.dynxs.de/wb2.10/tags/WB-2.10.0/wb/modules/form/save_field_new.php $
+ * @lastmodified    $Date: 2017-03-03 23:14:28 +0100 (Fr, 03. Mrz 2017) $
+ * @description
+ */
+if ( !defined( 'WB_PATH' ) ){ require( dirname(dirname((__DIR__))).'/config.php' ); }
+// suppress to print the header, so no new FTAN will be set
+$admin_header = false;
+// Tells script to update when this page was last updated
+$update_when_modified = true;
+// Include WB admin wrapper script
+require(WB_PATH.'/modules/admin.php');
+$sSectionIdPrefix = (defined( 'SEC_ANCHOR' ) && ( SEC_ANCHOR != '' )  ? SEC_ANCHOR : 'Sec' );
+$backUrl = ADMIN_URL.'/pages/modify.php?page_id='.$page_id.'#'.$sSectionIdPrefix.$section_id;
+// check FTAN
+if (!$admin->checkFTAN())
+{
+    $admin->print_header();
+    $admin->print_error( 'checkFTAN'.$MESSAGE['GENERIC_SECURITY_ACCESS'], $backUrl );
+}
+// Get id
+$field_id = intval($admin->checkIDKEY('field_id', false ));
+if (!$field_id) {
+    $admin->print_header();
+    $admin->print_error( '$field_id'.$MESSAGE['GENERIC_SECURITY_ACCESS'].'', $backUrl );
+}
+$backModuleUrl = WB_URL.'/modules/'.basename(__DIR__).'/modify_field.php?page_id='.$page_id.'&section_id='.$section_id.'&field_id='.$admin->getIDKEY($field_id);
+// After check print the header to get a new FTAN
+$admin->print_header();
+// Validate all fields
+if( ($admin->get_post('title') == '') || ($admin->get_post('type') == '') ) {
+    $admin->print_error($MESSAGE['GENERIC_FILL_IN_ALL'], $backModuleUrl );
+} else {
+    $title = $admin->StripCodeFromText(($admin->get_post('title')));
+    $type = ($admin->get_post('type'));
+    $required = (int) ($admin->get_post('required'));
+}
+// If field type has multiple options, get all values and implode them
+    $value = $extra = '';
+    $list_count = intval($admin->get_post('list_count'));
+    if(is_numeric($list_count)) {
+        $values = array();
+        for($i = 1; $i <= $list_count; $i++) {
+            if($admin->get_post('value'.$i) != '') {
+                $values[] = str_replace(",","&#44;",$admin->get_post('value'.$i));
+            }
+        }
+        $value = implode(',', $values);
+    } else {
+        $admin->print_error( ''.$MESSAGE['GENERIC_SECURITY_ACCESS'].''.$list_count, $backUrl );
+    }
+
+// prepare sql-update
+    switch($admin->get_post('type')):
+        case 'textfield':
+            $value = $admin->StripCodeFromText($admin->get_post('value'));
+            $extra = intval($admin->get_post('length'));
+            break;
+        case 'textarea':
+            $value = $admin->StripCodeFromText($admin->get_post('value'));
+            $extra = '';
+            break;
+        case 'heading':
+            $extra = $admin->StripCodeFromText( $admin->get_post('template'));
+            if(trim($extra) == '') $extra = '<tr><td class="frm-field_heading" colspan="2">{TITLE}{FIELD}</td></tr>';
+            break;
+        case 'select':
+            $extra = intval($admin->get_post('size')).','.$admin->get_post('multiselect');
+            break;
+        case 'checkbox':
+            $extra = $admin->StripCodeFromText( $admin->get_post('seperator'));
+            break;
+        case 'radio':
+            $extra = $admin->StripCodeFromText( $admin->get_post('seperator'));
+            break;
+        default:
+            $value = '';
+            $extra = '';
+            break;
+    endswitch;
+// Update row
+    $sql  = 'UPDATE `'.TABLE_PREFIX.'mod_form_fields` SET '
+    . '`title`=\''.$database->escapeString($title).'\', '
+    . '`type`=\''.$database->escapeString($type).'\', '
+    . '`required`=\''.$database->escapeString($required).'\', '
+    . '`extra`=\''.$database->escapeString($extra).'\', '
+    . '`value`=\''.$database->escapeString($value).'\' '
+    . 'WHERE field_id = '.(int)$field_id.' ';
+    if( $database->query($sql) ) {
+        $admin->print_success($TEXT['SUCCESS'], $backModuleUrl );
+    }else {
+        $admin->print_error($database->get_error(), $backModuleUrl );
+    }
+// Print admin footer
+    $admin->print_footer();
